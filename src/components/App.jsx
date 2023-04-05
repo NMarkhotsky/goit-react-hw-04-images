@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import { useState, useEffect } from 'react';
 import { SearchBar } from './Gallery/Searchbar/Searchbar';
 import { GlobalStyle } from './GlobalStyle/GlobalStyle';
 import { ImageGallery } from './Gallery/ImageGallery/ImageGallery';
@@ -9,83 +9,72 @@ import { ModalOvelay } from './Gallery/Modal/Modal';
 import { Loader } from './Gallery/Loader/Loader';
 import scrollOnLoad from './Gallery/utils/scrollLoadBtn';
 
-export class App extends Component {
-  state = {
-    images: [],
-    searchQuery: '',
-    page: 1,
-    largeImage: '',
-    error: null,
-    isModalOpen: false,
-    isLoading: false,
-  };
+export const App = () => {
+  const [images, setImages] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [largeImage, setLargeImage] = useState('');
+  const [error, setError] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Якщо оновився стейт рендеримо картинки
-  componentDidUpdate(_, prevState) {
-    if (prevState.searchQuery !== this.state.searchQuery) {
-      this.getDataImages();
-    }
-  }
+  useEffect(() => {
+    if (searchQuery === '') return;
 
-  // При сабміті форми приймає значення інпуту і скидає images та page
-  handleSubmitSearchQuery = searchQuery => {
-    this.setState({ images: [], searchQuery, page: 1 });
-  };
+    const getDataImages = async () => {
+      try {
+        setIsLoading(true);
 
-  // Витягуємо дані з фетча і записуємо в стейт
-  getDataImages = async () => {
-    const { searchQuery, page } = this.state;
+        const { hits } = await fetchImages(searchQuery, page);
 
-    this.setState({ isLoading: true });
+        setImages(prevImages => [...prevImages, ...hits]);
 
-    try {
-      const { hits } = await fetchImages(searchQuery, page);
-
-      this.setState(({ images, page }) => ({
-        images: [...images, ...hits],
-        page: page + 1,
-      }));
-
-      if (page !== 1) {
-        scrollOnLoad();
+        if (page !== 1) {
+          scrollOnLoad();
+        }
+      } catch (error) {
+        // eslint-disable-next-line no-ex-assign
+        setError((error = 'Oops something went wrong...'));
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      this.setState({ error: 'Oops something went wrong...' });
-    } finally {
-      this.setState({ isLoading: false });
-    }
+    };
+    getDataImages();
+  }, [page, searchQuery]);
+
+  const handleClickLoadMore = () => {
+    setPage(prevPage => prevPage + 1);
   };
 
-  // Отримуємо Оригінальне зображення по кліку і відкриваємо модалку
-  getLargeImage = largeImage => {
-    this.setState({ largeImage, isModalOpen: true });
+  const handleSubmitSearchQuery = searchQuery => {
+    setImages([]);
+    setSearchQuery(searchQuery);
+    setPage(1);
+    setError(null);
   };
 
-  // Тогл модалки
-  toggleShowModal = () => {
-    this.setState(({ isModalOpen }) => ({ isModalOpen: !isModalOpen }));
+  const getLargeImage = largeImage => {
+    setLargeImage(largeImage);
+    setIsModalOpen(true);
   };
 
-  render() {
-    const { images, largeImage, isModalOpen, isLoading, error } = this.state;
-    const lengthImages = images.length >= 12;
+  const toggleShowModal = () => {
+    setIsModalOpen(isModalOpen => !isModalOpen);
+  };
 
-    return (
-      <Container>
-        <SearchBar onSubmit={this.handleSubmitSearchQuery} />
-        {error}
-        <ImageGallery items={images} getItemClick={this.getLargeImage} />
-        {isLoading && <Loader />}
-        {lengthImages && <LoadMore onLoadMore={() => this.getDataImages} />}
-        {isModalOpen && (
-          <ModalOvelay
-            largeImageURL={largeImage}
-            onClick={this.toggleShowModal}
-          />
-        )}
+  const lengthImages = images.length >= 12;
 
-        <GlobalStyle />
-      </Container>
-    );
-  }
-}
+  return (
+    <Container>
+      <SearchBar onSubmit={handleSubmitSearchQuery} />
+      {error}
+      <ImageGallery items={images} getItemClick={getLargeImage} />
+      {isLoading && <Loader />}
+      {lengthImages && <LoadMore onLoadMore={() => handleClickLoadMore} />}
+      {isModalOpen && (
+        <ModalOvelay largeImageURL={largeImage} onClick={toggleShowModal} />
+      )}
+      <GlobalStyle />
+    </Container>
+  );
+};
